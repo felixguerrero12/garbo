@@ -1,0 +1,26 @@
+sourcetype=XmlWinEventLog:Security AND EventCode=4662 AND NOT (SubjectUserSid="AUTORITE NT\\*" OR SubjectDomainName="Window Manager")
+(
+  (ObjectType="%{19195a5b-6da0-11d0-afd3-00c04fd930c9}" OR ObjectType="domainDNS")
+  AND
+  (Properties="*Replicating Directory Changes All*" OR Properties="*{1131f6ad-9c07-11d1-f79f-00c04fc2dcd2}*" OR Properties = "*{9923a32a-3607-11d2-b9be-0000f87a36b2}*" OR Properties = "*{1131f6ac-9c07-11d1-f79f-00c04fc2dcd2}*")    
+)
+| rename _time AS DSTime, SubjectUserSid AS DSUserSid, SubjectDomainName AS DSDomainName, SubjectUserName AS DSUserName, SubjectLogonId AS DSLogonId, ObjectType AS DSObjectType, ObjectName AS DSObjectName, Properties AS DSProperties status AS DSStatus
+| join type=left Computer, DSLogonId
+[
+    search sourcetype=XmlWinEventLog:Security AND EventCode=4624 NOT (TargetUserSid="AUTORITE NT\\*" OR TargetDomainName="Window Manager")
+    | rename _time AS LogonTime, TargetLogonId AS DSLogonId
+]
+| convert timeformat="%d/%m/%Y %H:%M:%S" ctime(DSTime), ctime(LogonTime)
+| table DSTime, Computer, DSUserSid, DSDomainName, DSUserName, DSObjectType, DSObjectName, DSProperties, DSStatus, DSLogonId, LogonTime, AuthenticationPackageName, IpAddress, IpPort
+
+sourcetype="XmlWinEventLog:Security" AND EventCode=4742 AND NOT (SubjectUserSid="AUTORITE NT\\*" OR SubjectDomainName="Window Manager")
+AND (ServicePrincipalNames="*GC/*" OR ServicePrincipalNames="*E3514235-4B06-11D1-AB04-00C04FC2DCD2/*")
+AND NOT (SubjectUserSid = "AUTORITE NT\\*")
+| rename _time AS CAMTime, SubjectUserSid AS CAMSubjectUserSid, SubjectDomainName AS CAMSubjectDomainName, SubjectUserName AS CAMSubjectUserName, SubjectLogonId AS CAMSubjectLogonId, TargetSid AS CAMTargetSid, TargetDomainName AS CAMTargetDomainName, TargetUserName AS CAMTargetUserName, ServicePrincipalNames AS CAMServicePrincipalNames
+| join type=left Computer, CAMSubjectLogonId
+[
+    search sourcetype=XmlWinEventLog:Security AND EventCode=4624 NOT (TargetUserSid="AUTORITE NT\\*" OR TargetDomainName="Window Manager")
+    | rename _time AS LogonTime, TargetLogonId AS CAMSubjectLogonId
+]
+| convert timeformat="%d/%m/%Y %H:%M:%S" ctime(CAMTime), ctime(LogonTime)
+| table CAMTime, CAMSubjectUserSid, CAMSubjectDomainName, CAMSubjectUserName, CAMTargetSid, CAMTargetDomainName, CAMTargetUserName, CAMServicePrincipalNames, CAMSubjectLogonId, LogonTime, AuthenticationPackageName, IpAddress, IpPort
